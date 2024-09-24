@@ -4,46 +4,78 @@ using UnityEngine;
 
 public class NailControl : MonoBehaviour
 {
-    public float moveSpeed = 5f;        // Speed at which the nail moves down
-    public float targetYCoordinate = 0f; // The specific Y-coordinate the nail will move to
-    private bool isMoving = false;      // Flag to check if the nail is moving
-    private Vector3 targetPosition;     // The target position where the nail will stop moving
+    public LastNailControl lastNailControl;  // Reference to the LastNailControl script
+    private float moveSpeed = 10f;           // Speed at which the nail moves down and back up
+    public float correctYCoordinate = 0.995f;  // Y-coordinate for correct movement
+    private float incorrectYOffset = -2f;   // Offset for incorrect movement (distance the nail moves down from the original position)
+
+    private Vector3 initialPosition;       // Initial position of the nail
+    private Vector3 correctTargetPosition; // Target position when clicked in the correct order
+    private Vector3 incorrectTargetPosition; // Target position when clicked in the wrong order
+
+    private bool isMoving = false;         // Flag to check if the nail is moving
+
+    public static int currentNailIndex = 0;    // Index of the nail that should be clicked next in the correct order
+    public int nailOrderIndex;                 // This nail's index in the correct order
 
     void Start()
     {
-        // Calculate the target position using the same X and Z coordinates but the new Y value
-        targetPosition = new Vector3(transform.position.x, targetYCoordinate, transform.position.z);
+        // Store the initial position of the nail
+        initialPosition = transform.position;
+
+        // Correct target position (this happens when clicked in the right order)
+        correctTargetPosition = new Vector3(initialPosition.x, correctYCoordinate, initialPosition.z);
+
+        // Incorrect target position (this happens when clicked in the wrong order)
+        incorrectTargetPosition = new Vector3(initialPosition.x, initialPosition.y + incorrectYOffset, initialPosition.z);
     }
 
     void Update()
     {
-        // If the nail is moving, move it down
-        if (isMoving)
-        {
-            MoveNailDown();
-        }
+        // If the nail is moving, it will handle movement in the coroutines
     }
 
     // Detect mouse click on the nail
     private void OnMouseDown()
     {
-        // If the player clicks the nail and it isn't already moving, start moving
-        if (!isMoving)
+        // Check if this nail is the next in the correct order
+        if (nailOrderIndex == currentNailIndex && !isMoving)
         {
-            isMoving = true;
+            isMoving = true; // Move the nail down
+            StartCoroutine(MoveNail(correctTargetPosition)); // Move nail to correct position
+            currentNailIndex++; // Increment the current nail index
+            if (currentNailIndex == 6)
+            {
+                lastNailControl.allOtherNailed = true;  // Trigger the condition
+            }
+        }
+        else if (!isMoving)
+        {
+            // If it's the wrong order, trigger the incorrect movement
+            StartCoroutine(WrongOrderMotion());
         }
     }
 
-    // Move the nail down towards the target position
-    private void MoveNailDown()
+    // Move the nail down towards the correct target position
+    private IEnumerator MoveNail(Vector3 targetPosition)
     {
+        isMoving = true;
         // Move the nail towards the target position
-        transform.position = Vector3.MoveTowards(transform.position, targetPosition, moveSpeed * Time.deltaTime);
-
-        // If the nail reaches the target position, stop moving
-        if (Vector3.Distance(transform.position, targetPosition) < 0.001f)
+        while (Vector3.Distance(transform.position, targetPosition) > 0.001f)
         {
-            isMoving = false;
+            transform.position = Vector3.MoveTowards(transform.position, targetPosition, moveSpeed * Time.deltaTime);
+            yield return null;
         }
+        isMoving = false;
+    }
+
+    // Handle incorrect movement: Nail moves down and then returns to the original position
+    private IEnumerator WrongOrderMotion()
+    {
+        // Move down to the incorrect target position
+        yield return StartCoroutine(MoveNail(incorrectTargetPosition));
+
+        // Move back up to the original position
+        yield return StartCoroutine(MoveNail(initialPosition));
     }
 }
